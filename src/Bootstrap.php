@@ -64,6 +64,9 @@ final class Bootstrap
         $this->container->instance(Config::class, $this->config);
         $this->container->instance(Runtime::class, $this->runtime);
 
+        // 启动序列收尾：触发所有排队的 booted 回调（此时 App/Config/Runtime 已可注入）
+        $app->markBooted();
+
         return $app;
     }
 

@@ -24,9 +24,18 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '1.0.0';
+    public const VERSION = '1.1.0';
 
     private static ?App $instance = null;
+
+    /** 标记是否已结束启动序列（booted 回调据此决定立即执行还是入队）。 */
+    private bool $booted = false;
+
+    /** 启动完成（markBooted）后执行的回调队列。 */
+    private array $bootedCallbacks = [];
+
+    /** 应用终止（PHP shutdown）时执行的回调队列。 */
+    private array $terminatingCallbacks = [];
 
     public function __construct(
         public readonly Container $container,
@@ -63,6 +72,11 @@ final class App
 
         $bootstrap = new Bootstrap($options);
         self::$instance = $bootstrap->run();
+
+        // 注册应用终止回调：PHP 进程结束时（shutdown）自动执行所有 terminating 回调。
+        // 数组形式捕获当前实例，即便后续 singleton 被测试重置也不会丢失。
+        register_shutdown_function([self::$instance, 'callTerminatingCallbacks']);
+
         return self::$instance;
     }
 
@@ -105,6 +119,107 @@ final class App
     public function isCli(): bool
     {
         return \PHP_SAPI === 'cli' || \PHP_SAPI === 'phpdbg';
+    }
+
+    /** 是否为控制台（CLI）环境，等价于 isCli()（语义化别名）。 */
+    public function runningInConsole(): bool
+    {
+        return $this->isCli();
+    }
+
+    /**
+     * 读取 / 判断当前运行环境。
+     *   environment()              → 返回配置中的 app.env（默认 'production'）
+     *   environment('testing')     → 当前为 testing 返回 true，否则 false
+     *   environment('local','testing') → 命中任一即 true
+     *   environment(['local','testing']) → 命中数组内任一即 true
+     */
+    public function environment(string|array ...$envs): string|bool
+    {
+        $current = $this->config->get('app.env', 'production');
+        if ($envs === []) {
+            return $current;
+        }
+        foreach ($envs as $env) {
+            $list = is_array($env) ? $env : [$env];
+            if (in_array($current, $list, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 应用基路径。
+     *   basePath()          → 返回根目录（boot 时由 base_path 选项决定，缺省 getcwd()）
+     *   basePath('a/b.php') → 根目录拼接相对路径
+     */
+    public function basePath(string $path = ''): string
+    {
+        $base = rtrim($this->basePath, '/\\');
+        return $path === '' ? $base : $base . '/' . ltrim($path, '/\\');
+    }
+
+    /** 应用源码路径（basePath/src）。 */
+    public function path(string $path = ''): string
+    {
+        return $this->basePath('src' . ($path === '' ? '' : '/' . ltrim($path, '/\\')));
+    }
+
+    /** 返回当前版本号（等价于 App::VERSION）。 */
+    public function version(): string
+    {
+        return self::VERSION;
+    }
+
+    /**
+     * 注册“启动完成后”执行的回调。
+     * - 若应用已启动（booted=true），则立即以 DI 注入方式执行；
+     * - 否则入队，待 Bootstrap 在启动序列末尾统一触发（markBooted）。
+     *
+     * 回调参数会按类型从容器自动解析（可类型提示 App / Config / Runtime）。
+     */
+    public function booted(callable $callback): static
+    {
+        if ($this->booted) {
+            $this->container->call($callback);
+            return $this;
+        }
+        $this->bootedCallbacks[] = $callback;
+        return $this;
+    }
+
+    /**
+     * 由 Bootstrap 在启动序列末尾调用：执行所有排队的 booted 回调并标记 booted=true。
+     * 此后通过 booted() 注册的回调将立即执行。
+     */
+    public function markBooted(): void
+    {
+        $this->booted = true;
+        foreach ($this->bootedCallbacks as $callback) {
+            $this->container->call($callback);
+        }
+        $this->bootedCallbacks = [];
+    }
+
+    /**
+     * 注册“应用终止时（PHP shutdown）”执行的回调。
+     * App::boot() 已自动注册 register_shutdown_function，进程退出前会自动 callTerminatingCallbacks()。
+     * 回调参数按类型从容器自动解析。
+     */
+    public function terminating(callable $callback): static
+    {
+        $this->terminatingCallbacks[] = $callback;
+        return $this;
+    }
+
+    /** 执行所有 terminating 回调（幂等：执行后清空，重复调用为无操作）。 */
+    public function callTerminatingCallbacks(): void
+    {
+        foreach ($this->terminatingCallbacks as $callback) {
+            $this->container->call($callback);
+        }
+        $this->terminatingCallbacks = [];
     }
 
     /**

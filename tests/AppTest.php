@@ -126,7 +126,7 @@ final class AppTest extends TestCase
         ]);
 
         // 版本号常量
-        self::assertSame('1.0.0', App::VERSION);
+        self::assertSame('1.1.0', App::VERSION);
 
         // 全局辅助函数
         self::assertSame($app, app());
@@ -143,6 +143,48 @@ final class AppTest extends TestCase
 
         // CLI 环境判定（PHPUnit 运行于 CLI）
         self::assertTrue($app->isCli());
+    }
+
+    public function testLifecycleEnvironmentAndPaths(): void
+    {
+        $app = App::boot([
+            'base_path' => '/var/www/app',
+            'config'    => ['app' => ['name' => 'Life', 'env' => 'testing']],
+            'runtime'   => ['fiber'],
+        ]);
+
+        // 环境判定
+        self::assertSame('testing', $app->environment());
+        self::assertTrue($app->environment('testing'));
+        self::assertTrue($app->environment('local', 'testing'));
+        self::assertFalse($app->environment('production'));
+        self::assertTrue($app->runningInConsole());
+
+        // 路径辅助
+        self::assertSame('/var/www/app', $app->basePath());
+        self::assertSame('/var/www/app/config/app.php', $app->basePath('config/app.php'));
+        self::assertSame('/var/www/app/src', $app->path());
+
+        // 版本便捷方法
+        self::assertSame('1.1.0', $app->version());
+
+        // booted：应用已启动，注册即立即执行（并以 DI 注入 App）
+        $bootedLog = [];
+        $app->booted(function (App $a) use (&$bootedLog): void {
+            $bootedLog[] = 'booted:' . $a->config('app.name');
+        });
+        self::assertSame(['booted:Life'], $bootedLog);
+
+        // terminating：注册时不应执行，需手动触发；且幂等
+        $termLog = [];
+        $app->terminating(function () use (&$termLog): void {
+            $termLog[] = 'terminating';
+        });
+        self::assertSame([], $termLog, 'terminating 不应在注册时执行');
+        $app->callTerminatingCallbacks();
+        self::assertSame(['terminating'], $termLog);
+        $app->callTerminatingCallbacks(); // 再次调用应为空（已清空）
+        self::assertSame(['terminating'], $termLog);
     }
 }
 

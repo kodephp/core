@@ -81,11 +81,35 @@ config('app.name');    // 读配置（等价于 $app->config('app.name')）
 runtime();             // 返回 Runtime 实例（等价于 $app->runtime）
 
 // App 便捷方法
-App::VERSION;          // 当前版本号，如 '1.0.0'（与 git tag 保持一致）
+App::VERSION;          // 当前版本号，如 '1.1.0'（与 git tag 保持一致）
+$app->version();       // 等价于 App::VERSION
 $app->has(Greeter::class);            // 容器中是否存在该绑定
 $app->call(fn (Greeter $g) => $g->hello());  // 以 DI 自动注入方式调用回调
 $app->isCli();                        // 是否运行在 CLI / PHPDBG 下
+$app->runningInConsole();             // 等价于 isCli()（语义化别名）
+$app->environment();                  // 返回当前环境（app.env，默认 'production'）
+$app->environment('testing');         // 当前是否为 testing → true / false
+$app->basePath();                     // 应用基路径（boot 的 base_path，缺省 getcwd()）
+$app->basePath('config/app.php');     // 基路径拼接相对路径
+$app->path();                         // 应用源码路径（basePath/src）
 $app->enableRuntime('process');       // 链式启用运行时（等价于 $app->runtime->enable()）
+```
+
+### 应用生命周期回调
+
+`kode/core` 提供两个生命周期钩子，回调均按类型从容器自动注入参数（可类型提示 `App` / `Config` / `Runtime`）：
+
+```php
+// 启动完成后执行（应用已启动则注册即立即执行；否则在启动序列末尾触发）
+$app->booted(function (App $app): void {
+    // 依赖已就绪，可做后处理
+});
+
+// 应用终止（PHP shutdown）时执行（App::boot() 已自动注册 register_shutdown_function）
+$app->terminating(function (): void {
+    // 清理资源、关闭连接等
+});
+// 也可在测试中手动触发： $app->callTerminatingCallbacks()
 ```
 
 ---
@@ -261,13 +285,12 @@ kode/core        ← 本包：App 启动器 + 内置 ServiceProvider/Config（�
 application/                 # 开发目录（包名是 kode/core，目录名与包名可不同）
 ├── composer.json            # name: kode/core, php >= 8.3, require: kode/di + kode/runtime
 ├── LICENSE                  # MIT（Copyright (c) kode, zyk）
-├── CHANGELOG.md             # 版本变更记录（v1.0.0 起）
-├── .gitignore               # 忽略 vendor / composer.lock / .workbuddy 等
-├── .github/workflows/tests.yml  # CI：PHP 8.3 下运行 PHPUnit
+├── CHANGELOG.md             # 版本变更记录（仅本地，不入库）
+├── .gitignore               # 忽略 vendor / composer.lock / .workbuddy / CHANGELOG.md 等
 ├── phpunit.xml.dist
 ├── src/
-│   ├── App.php              # 启动器门面（App::boot()）+ VERSION / call / has / isCli
-│   ├── Bootstrap.php        # 启动序列编排（加载配置→注册服务→启动运行时）
+│   ├── App.php              # 启动器门面（App::boot()）+ VERSION / call / has / isCli / environment / basePath / booted / terminating
+│   ├── Bootstrap.php        # 启动序列编排（加载配置→注册服务→启动运行时→触发 booted 回调）
 │   ├── Config/              # Config 仓库 + Loader 加载器（内置）
 │   ├── Provider/            # ServiceProvider 抽象（桥接 kode/di）+ ProviderRepository（内置）
 │   ├── Runtime/             # Runtime 管理器（桥接 kode/runtime）
