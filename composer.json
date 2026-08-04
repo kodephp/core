@@ -1,0 +1,64 @@
+{
+    "name": "kode/core",
+    "description": "Kode Core —— 关联 kode 生态包的应用启动器（App::boot）：加载配置 → 注册服务 → 启动运行时。DI 由 kode/di 提供，运行时由 kode/runtime 提供，ServiceProvider 与 Config 内置于本包。",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "kode",
+        "core",
+        "app",
+        "bootstrap",
+        "launcher",
+        "di",
+        "container",
+        "service-provider",
+        "config",
+        "runtime",
+        "coroutine",
+        "distributed"
+    ],
+    "authors": [
+        {
+            "name": "kode"
+        },
+        {
+            "name": "zyk"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "kode/di": "^1.0",
+        "kode/runtime": "^1.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "suggest": {
+        "kode/process": "Master-Worker 进程管理（多进程），启用 Runtime::enable('process') 时桥接",
+        "kode/parallel": "多线程/并行并发（Runtime/Task/Future/Cluster），启用 Runtime::enable('parallel') 时桥接",
+        "kode/fibers": "Fiber 协程调度与分布式事务，启用 Runtime::enable('fiber'|'distributed') 时桥接",
+        "kode/context": "协程/纤程上下文管理，支持分布式多机器部署，启用 Runtime::enable('distributed') 时桥接",
+        "psr/container": "若希望容器原生实现 Psr\\Container\\ContainerInterface，可安装此包（本包已按 PSR-11 语义设计，无需强制依赖）"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kode\\Core\\": "src/"
+        },
+        "files": [
+            "src/Support/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kode\\Core\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {}
+    },
+    "minimum-stability": "stable"
+}
