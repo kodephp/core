@@ -126,7 +126,7 @@ final class AppTest extends TestCase
         ]);
 
         // 版本号常量
-        self::assertSame('1.1.0', App::VERSION);
+        self::assertSame('1.2.0', App::VERSION);
 
         // 全局辅助函数
         self::assertSame($app, app());
@@ -166,7 +166,7 @@ final class AppTest extends TestCase
         self::assertSame('/var/www/app/src', $app->path());
 
         // 版本便捷方法
-        self::assertSame('1.1.0', $app->version());
+        self::assertSame('1.2.0', $app->version());
 
         // booted：应用已启动，注册即立即执行（并以 DI 注入 App）
         $bootedLog = [];
@@ -185,6 +185,54 @@ final class AppTest extends TestCase
         self::assertSame(['terminating'], $termLog);
         $app->callTerminatingCallbacks(); // 再次调用应为空（已清空）
         self::assertSame(['terminating'], $termLog);
+    }
+
+    public function testEventsAndMaintenance(): void
+    {
+        // 用系统临时目录作为基路径，避免污染仓库
+        $base = sys_get_temp_dir() . '/kode-core-test-' . uniqid();
+        $app = App::boot([
+            'base_path' => $base,
+            'config'    => ['app' => ['env' => 'testing']],
+            'runtime'   => ['fiber'],
+        ]);
+
+        // 事件总线
+        self::assertFalse($app->hasListeners('demo.event'));
+        $log = [];
+        $listener = function (string $name) use (&$log): string {
+            $log[] = "hi:$name";
+            return strtoupper($name);
+        };
+        $app->listen('demo.event', $listener);
+        self::assertTrue($app->hasListeners('demo.event'));
+
+        $results = $app->dispatch('demo.event', 'kode');
+        self::assertSame(['hi:kode'], $log);
+        self::assertSame(['KODE'], $results);
+
+        // 未注册事件返回空数组
+        self::assertSame([], $app->dispatch('no.such.event'));
+
+        // 移除指定监听器
+        $app->forget('demo.event', $listener);
+        self::assertFalse($app->hasListeners('demo.event'));
+
+        // 维护模式
+        self::assertFalse($app->isDownForMaintenance());
+        $app->down('维护中');
+        self::assertTrue($app->isDownForMaintenance());
+        $app->up();
+        self::assertFalse($app->isDownForMaintenance());
+
+        // 单元测试环境判定（PHPUnit 下应为 true）
+        self::assertTrue($app->runningUnitTests());
+
+        // 清理临时目录
+        @unlink($base . '/storage/framework/down');
+        @rmdir($base . '/storage/framework');
+        @rmdir($base . '/storage');
+        @rmdir($base);
     }
 }
 

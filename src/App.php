@@ -24,7 +24,7 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.2.0';
 
     private static ?App $instance = null;
 
@@ -36,6 +36,9 @@ final class App
 
     /** 应用终止（PHP shutdown）时执行的回调队列。 */
     private array $terminatingCallbacks = [];
+
+    /** 应用事件监听器：事件名 → 监听器队列。 */
+    private array $listeners = [];
 
     public function __construct(
         public readonly Container $container,
@@ -230,5 +233,114 @@ final class App
     {
         $this->runtime->enable($name);
         return $this;
+    }
+
+    // ------------------------------------------------------------------
+    // 应用事件总线（运行时组件间解耦通信）
+    // ------------------------------------------------------------------
+
+    /**
+     * 注册事件监听器。
+     *   $app->listen('order.created', fn ($order) => ...);
+     */
+    public function listen(string $event, callable $listener): static
+    {
+        $this->listeners[$event][] = $listener;
+        return $this;
+    }
+
+    /** 是否存在某事件的监听器。 */
+    public function hasListeners(string $event): bool
+    {
+        return !empty($this->listeners[$event]);
+    }
+
+    /**
+     * 移除监听器：不传 $listener 则清空该事件全部监听器；
+     * 传 $listener 则仅移除与之相同的闭包/可调用对象。
+     */
+    public function forget(string $event, ?callable $listener = null): static
+    {
+        if ($listener === null) {
+            unset($this->listeners[$event]);
+            return $this;
+        }
+        if (isset($this->listeners[$event])) {
+            $this->listeners[$event] = array_values(array_filter(
+                $this->listeners[$event],
+                static fn (callable $l): bool => $l !== $listener
+            ));
+        }
+        return $this;
+    }
+
+    /**
+     * 派发事件：按注册顺序逐个调用监听器，payload 以可变参数形式传入。
+     * 返回各监听器的返回值数组（便于“返回值聚合”场景）。
+     *
+     *   $results = $app->dispatch('order.created', $order);
+     *
+     * @return array<int, mixed>
+     */
+    public function dispatch(string $event, mixed ...$payload): array
+    {
+        if (!isset($this->listeners[$event])) {
+            return [];
+        }
+        $results = [];
+        foreach ($this->listeners[$event] as $listener) {
+            $results[] = $listener(...$payload);
+        }
+        return $results;
+    }
+
+    // ------------------------------------------------------------------
+    // 维护模式（文件标记，常用于发布/紧急停机）
+    // ------------------------------------------------------------------
+
+    /** 维护模式标记文件相对于基路径的位置。 */
+    private const DOWN_FILE = 'storage/framework/down';
+
+    /** 进入维护模式：在 storage/framework/down 写入 JSON 标记（含时间与可选提示）。 */
+    public function down(string $message = ''): static
+    {
+        $path = $this->basePath(self::DOWN_FILE);
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        file_put_contents($path, json_encode([
+            'time'    => time(),
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE));
+        return $this;
+    }
+
+    /** 退出维护模式：删除标记文件。 */
+    public function up(): static
+    {
+        $path = $this->basePath(self::DOWN_FILE);
+        if (is_file($path)) {
+            unlink($path);
+        }
+        return $this;
+    }
+
+    /** 是否处于维护模式（标记文件是否存在）。 */
+    public function isDownForMaintenance(): bool
+    {
+        return is_file($this->basePath(self::DOWN_FILE));
+    }
+
+    // ------------------------------------------------------------------
+    // 运行环境辅助判定
+    // ------------------------------------------------------------------
+
+    /** 是否处于单元测试环境（检测 PHPUnit / APP_ENV=testing）。 */
+    public function runningUnitTests(): bool
+    {
+        return class_exists(\PHPUnit\Framework\TestCase::class)
+            || defined('PHPUNIT_COMPLETION')
+            || getenv('APP_ENV') === 'testing';
     }
 }

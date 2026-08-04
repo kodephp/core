@@ -112,6 +112,27 @@ $app->terminating(function (): void {
 // 也可在测试中手动触发： $app->callTerminatingCallbacks()
 ```
 
+### 应用事件总线、维护模式与运行环境
+
+```php
+// 1) 事件总线：组件间解耦通信
+$app->listen('order.created', fn (string $id) => /* ... */);
+$results = $app->dispatch('order.created', $orderId); // 按注册顺序调用，返回各监听器返回值数组
+$app->hasListeners('order.created');                  // 是否有监听器
+$app->forget('order.created');                        // 清空该事件监听器
+
+// 2) 维护模式（文件标记，常用于发布/紧急停机）
+$app->isDownForMaintenance();   // 是否处于维护模式
+$app->down('升级中');           // 进入维护模式（写入 storage/framework/down）
+$app->up();                     // 退出维护模式
+
+// 3) 运行环境判定
+$app->runningUnitTests();       // 是否单元测试环境（PHPUnit / APP_ENV=testing）
+```
+
+> 说明：`listen`/`dispatch` 是一个**轻量事件总线**（payload 以可变参数传入监听器），用于运行时组件解耦；
+> 而 `booted`/`terminating` 是**启动/终止生命周期钩子**——二者职责不同，按需选用。
+
 ---
 
 ## 三、启动序列（Bootstrap）
