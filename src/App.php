@@ -18,13 +18,14 @@ declare(strict_types=1);
 namespace Kode\Core;
 
 use Kode\Core\Config\Config;
+use Kode\Core\Context;
 use Kode\Core\Runtime\Runtime;
 use Kode\DI\Container;
 
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.3.0';
 
     private static ?App $instance = null;
 
@@ -39,6 +40,9 @@ final class App
 
     /** 应用事件监听器：事件名 → 监听器队列。 */
     private array $listeners = [];
+
+    /** 应用上下文封装实例（桥接 kode/context，懒加载复用）。 */
+    private ?Context $contextInstance = null;
 
     public function __construct(
         public readonly Container $container,
@@ -173,6 +177,18 @@ final class App
     public function version(): string
     {
         return self::VERSION;
+    }
+
+    /**
+     * 获取应用上下文封装（桥接 kode/context）。
+     * 用于协程/分布式上下文读写、作用域隔离与 W3C 链路追踪透传。
+     *   $app->context()->startTrace();
+     *   $app->context()->set('tenant_id', 42);
+     *   $app->context()->toHeaders();
+     */
+    public function context(): Context
+    {
+        return $this->contextInstance ??= new Context();
     }
 
     /**

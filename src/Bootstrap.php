@@ -43,6 +43,10 @@ final class Bootstrap
         $this->config = new Config();
         $this->providers = new ProviderRepository($this->container);
         $this->runtime = new Runtime($this->container); // 注入容器，供 parallel/distributed 桥接注册服务
+
+        // 把容器注入 kode/facade，使任意继承 Kode\Core\Facade 的静态门面
+        // 都能按 id() 从容器解析真实实例（在整个启动周期内可用）。
+        Facade::setContainer($this->container);
     }
 
     /** 执行完整启动序列，返回组装好的 App。 */

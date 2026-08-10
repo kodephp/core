@@ -6,6 +6,7 @@ namespace Kode\Core\Tests;
 use Kode\Core\App;
 use Kode\Core\Config\Config;
 use Kode\Core\Provider\ServiceProvider;
+use Kode\DI\Attributes\Inject;
 use Kode\DI\Container;
 use PHPUnit\Framework\TestCase;
 
@@ -126,7 +127,7 @@ final class AppTest extends TestCase
         ]);
 
         // 版本号常量
-        self::assertSame('1.2.0', App::VERSION);
+        self::assertSame('1.3.0', App::VERSION);
 
         // 全局辅助函数
         self::assertSame($app, app());
@@ -166,7 +167,7 @@ final class AppTest extends TestCase
         self::assertSame('/var/www/app/src', $app->path());
 
         // 版本便捷方法
-        self::assertSame('1.2.0', $app->version());
+        self::assertSame('1.3.0', $app->version());
 
         // booted：应用已启动，注册即立即执行（并以 DI 注入 App）
         $bootedLog = [];
@@ -234,6 +235,78 @@ final class AppTest extends TestCase
         @rmdir($base . '/storage');
         @rmdir($base);
     }
+
+    public function testFacadeStaticProxy(): void
+    {
+        $app = App::boot([
+            'config'   => ['app' => ['name' => 'FacadeDemo']],
+            'runtime'  => ['fiber'],
+        ]);
+
+        // 继承 Kode\Core\Facade 的静态门面，按 id() 从容器解析真实实例
+        // DemoApiFacade::get() 等价于 app(DemoApi::class)->get()
+        $app->container->singleton(DemoApi::class, fn() => new DemoApi('v1'));
+
+        self::assertSame('v1-data', DemoApiFacade::get());
+        // 门面应解析到与容器同一实例
+        self::assertSame($app->make(DemoApi::class), DemoApiFacade::getInstance());
+    }
+
+    public function testContextWrapperAndHelper(): void
+    {
+        $app = App::boot([
+            'config'  => ['app' => ['env' => 'testing']],
+            'runtime' => ['fiber'],
+        ]);
+
+        // App::context() 返回的封装转发到 kode/context
+        $ctx = $app->context();
+        self::assertInstanceOf(\Kode\Core\Context::class, $ctx);
+
+        $ctx->set('tenant_id', 42);
+        self::assertTrue($ctx->has('tenant_id'));
+        self::assertSame(42, $ctx->get('tenant_id'));
+
+        // 链路追踪：开启（自动生成合规 W3C trace_id）→ 导出头
+        $traceId = $ctx->startTrace(); // 不传参，由 kode/context 生成合规 32 位十六进制 trace_id
+        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $traceId);
+        $info = $ctx->getTraceInfo();
+        self::assertSame($traceId, $info['trace_id']);
+        $headers = $ctx->toHeaders();
+        // 合规 trace_id 下应导出 W3C traceparent 头；私有头 X-Context-Trace-Id 始终存在
+        self::assertArrayHasKey('traceparent', $headers);
+        self::assertArrayHasKey('X-Context-Trace-Id', $headers);
+
+        // 全局 ctx() 辅助函数（须先 boot，setUp 已重置单例）
+        self::assertInstanceOf(\Kode\Core\Context::class, ctx());
+        self::assertSame(42, ctx()->get('tenant_id'));
+
+        $ctx->reset();
+        self::assertFalse($ctx->has('tenant_id'));
+    }
+
+    public function testConsoleRuntimeModeAvailable(): void
+    {
+        // kode/console 已安装，enable('console') 应成功（不再抛异常）
+        $app = App::boot([
+            'config'  => ['app' => ['env' => 'testing']],
+            'runtime' => ['console'],
+        ]);
+        self::assertTrue($app->runtime->has('console'));
+
+        // 内置 6 种 + console 共 7 种模式均应在 supported() 中可查
+        self::assertTrue($app->runtime->supported('console'));
+    }
+
+    public function testDiAttributeInjection(): void
+    {
+        // kode/di 2.x 支持 #[Inject] 属性注入：make 时自动填充标记属性
+        $container = new Container();
+        $container->singleton(Logger::class, fn() => new Logger());
+        $svc = $container->make(AttributedService::class);
+
+        self::assertInstanceOf(Logger::class, $svc->resolvedLogger());
+    }
 }
 
 // ---------- 测试用辅助类（与应用代码同文件，避免额外加载） ----------
@@ -269,3 +342,36 @@ final class DemoProvider extends ServiceProvider
         $this->container->singleton(Greeter::class, fn() => new Greeter($this->container->make(Logger::class), $name));
     }
 }
+
+// 静态门面演示：解析 DemoApi 服务
+final class DemoApi
+{
+    public function __construct(public string $version)
+    {
+    }
+    public function get(): string
+    {
+        return $this->version . '-data';
+    }
+}
+
+final class DemoApiFacade extends \Kode\Core\Facade
+{
+    protected static function id(): string
+    {
+        return DemoApi::class;
+    }
+}
+
+// DI 属性注入演示：#[Inject] 标记的属性在 make 时自动填充
+final class AttributedService
+{
+    #[Inject]
+    private Logger $logger;
+
+    public function resolvedLogger(): Logger
+    {
+        return $this->logger;
+    }
+}
+

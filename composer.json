@@ -27,8 +27,11 @@
     ],
     "require": {
         "php": ">=8.3",
-        "kode/di": "^1.0",
-        "kode/runtime": "^1.2"
+        "kode/di": "^2.2",
+        "kode/runtime": "^3.4",
+        "kode/attributes": "^2.1",
+        "kode/context": "^3.1",
+        "kode/facade": "^1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.0"
@@ -37,7 +40,7 @@
         "kode/process": "Master-Worker 进程管理（多进程），启用 Runtime::enable('process') 时桥接",
         "kode/parallel": "多线程/并行并发（Runtime/Task/Future/Cluster），启用 Runtime::enable('parallel') 时桥接",
         "kode/fibers": "Fiber 协程调度与分布式事务，启用 Runtime::enable('fiber'|'distributed') 时桥接",
-        "kode/context": "协程/纤程上下文管理，支持分布式多机器部署，启用 Runtime::enable('distributed') 时桥接",
+        "kode/console": "命令行应用框架（命令/参数解析），可结合本包 boot 后注册命令",
         "psr/container": "若希望容器原生实现 Psr\\Container\\ContainerInterface，可安装此包（本包已按 PSR-11 语义设计，无需强制依赖）"
     },
     "autoload": {

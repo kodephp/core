@@ -95,6 +95,55 @@ $app->path();                         // 应用源码路径（basePath/src）
 $app->enableRuntime('process');       // 链式启用运行时（等价于 $app->runtime->enable()）
 ```
 
+### 静态门面（桥接 kode/facade）
+
+任意注册到 kode/di 容器的服务，都能以「静态调用」方式访问（语法类似 Laravel Facade）：
+
+```php
+use Kode\Core\Facade;
+
+// 1) 定义门面：id() 返回容器中服务的标识
+final class Cache extends Facade
+{
+    protected static function id(): string
+    {
+        return CacheInterface::class;
+    }
+}
+
+// 2) 容器里绑定该服务（在 ServiceProvider 或 boot 后均可）
+app()->container->singleton(CacheInterface::class, fn () => new RedisCache());
+
+// 3) 静态调用，等价于 app(CacheInterface::class)->get('k')
+Cache::get('k');
+```
+
+门面类继承 `Kode\Core\Facade` 即可，容器由 `App::boot()` 在启动时自动注入；
+`id()` 到真实实例的绑定在首次静态调用时自动完成，无需手动 register。
+
+### 应用上下文（桥接 kode/context）
+
+为 Fiber / Swoole / Swow / 多线程 / 多进程 / 同步 环境提供「执行单元级」上下文隔离，
+并内置 W3C 链路追踪透传。通过 `App::context()` 或全局 `ctx()` 访问：
+
+```php
+// 执行单元级上下文读写（协程/线程间自动隔离）
+ctx()->set('tenant_id', 42);
+ctx()->get('tenant_id');                 // 42
+ctx()->push('tags', 'vip');              // 数组型值追加
+
+// 作用域隔离：回调结束自动回滚，避免污染外层上下文
+ctx()->transaction(fn () => ctx()->set('tmp', 1));
+
+// 分布式链路追踪：开启 → 导出 HTTP 头 → 在下游服务还原
+$traceId = ctx()->startTrace();          // 自动生成合规 32 位十六进制 trace_id
+$headers = ctx()->toHeaders();           // ['traceparent'=>..., 'X-Context-Trace-Id'=>..., ...]
+ctx()->fromHeaders($incomingHeaders);    // 在消费者侧恢复链路（优先 W3C 标准头）
+```
+
+`App::context()` 返回 `Kode\Core\Context` 封装实例（转发到 `Kode\Context\Context`），
+`ctx()` 为对应的全局辅助函数（需先 `App::boot()`）。
+
 ### 应用生命周期回调
 
 `kode/core` 提供两个生命周期钩子，回调均按类型从容器自动注入参数（可类型提示 `App` / `Config` / `Runtime`）：
@@ -230,6 +279,7 @@ $app->enableRuntime('process');      // 运行时再启用多进程（链式）
 | `enable('thread')` | 多线程（pthreads） | kode/runtime `thread` | 抛出明确提示 |
 | `enable('swoole')` | Swoole 协程服务器 | kode/runtime `swoole` | 抛出明确提示 |
 | `enable('swow')` | Swow 协程引擎 | kode/runtime `swow` | 抛出明确提示 |
+| `enable('console')` | 命令行输出增强（kode/console） | kode/runtime `console` | 抛出明确提示（需 kode/console） |
 | `enable('parallel')` | 并行 / 多线程（Runtime/Task/Future/Cluster） | **自动桥接 kode/parallel** | 提示 `composer require kode/parallel` |
 | `enable('distributed')` | 分布式（协程调度 + 跨机器上下文透传） | **自动桥接 kode/fibers + kode/context** | 提示 `composer require kode/fibers kode/context` |
 
@@ -310,14 +360,16 @@ application/                 # 开发目录（包名是 kode/core，目录名与
 ├── .gitignore               # 忽略 vendor / composer.lock / .workbuddy / CHANGELOG.md 等
 ├── phpunit.xml.dist
 ├── src/
-│   ├── App.php              # 启动器门面（App::boot()）+ VERSION / call / has / isCli / environment / basePath / booted / terminating
-│   ├── Bootstrap.php        # 启动序列编排（加载配置→注册服务→启动运行时→触发 booted 回调）
+│   ├── App.php              # 启动器门面（App::boot()）+ VERSION / call / has / isCli / environment / basePath / booted / terminating / context()
+│   ├── Bootstrap.php        # 启动序列编排（加载配置→注册服务→启动运行时→触发 booted 回调），注入容器到 Facade
+│   ├── Facade.php           # 静态门面基类（桥接 kode/facade，自动按 id() 绑定）
+│   ├── Context.php          # 应用上下文封装（桥接 kode/context，链路追踪/作用域隔离）
 │   ├── Config/              # Config 仓库 + Loader 加载器（内置）
 │   ├── Provider/            # ServiceProvider 抽象（桥接 kode/di）+ ProviderRepository（内置）
 │   ├── Runtime/             # Runtime 管理器（桥接 kode/runtime）
 │   │   └── Bridge/           # 自动桥接适配器（parallel→kode/parallel、distributed→kode/fibers+kode/context）
 │   ├── Exceptions/          # CoreException / RuntimeException 体系
-│   └── Support/             # helpers.php（app() / config() / runtime() 全局函数）
+│   └── Support/             # helpers.php（app() / config() / runtime() / ctx() 全局函数）
 ├── examples/                # bootstrap.php 演示 + config/
 └── tests/                   # PHPUnit 测试
 ```

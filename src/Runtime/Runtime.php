@@ -39,6 +39,7 @@ final class Runtime
         'thread'  => RuntimeAdapterFactory::ENV_THREAD,
         'swoole'  => RuntimeAdapterFactory::ENV_SWOOLE,
         'swow'    => RuntimeAdapterFactory::ENV_SWOW,
+        'console' => RuntimeAdapterFactory::ENV_CONSOLE,
     ];
 
     /** 已注册的自动桥接适配器（逻辑模式 → 适配器实例）。 */

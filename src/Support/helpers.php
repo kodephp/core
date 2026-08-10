@@ -57,3 +57,22 @@ if (!function_exists('runtime')) {
         return $instance->runtime;
     }
 }
+
+if (!function_exists('ctx')) {
+    /**
+     * 获取应用上下文封装（桥接 kode/context），用于协程/分布式上下文读写与链路追踪。
+     *   ctx()                       → 返回 Kode\Core\Context 实例
+     *   ctx()->startTrace()         → 开启一条分布式链路
+     *   ctx()->set('tenant_id', 42) → 写入执行单元级上下文
+     *   ctx()->toHeaders()          → 导出可跨节点透传的 HTTP 头
+     */
+    function ctx(): \Kode\Core\Context
+    {
+        $instance = App::getInstance();
+        if ($instance === null) {
+            throw new \RuntimeException('App 尚未启动，无法获取 context（请先调用 App::boot()）');
+        }
+        return $instance->context();
+    }
+}
+

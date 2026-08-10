@@ -86,3 +86,50 @@ foreach (['process', 'thread', 'swoole', 'swow'] as $mode) {
         echo "runtime [{$mode}] 未启用：{$e->getMessage()}\n";
     }
 }
+
+// ---------- 6) 静态门面（桥接 kode/facade） ----------
+
+// 任意容器服务都能以静态方式访问：DemoApiFacade::get() 等价于 app(DemoApi::class)->get()
+final class DemoApi
+{
+    public function __construct(public string $version = 'v1')
+    {
+    }
+    public function get(): string
+    {
+        return $this->version . '-data';
+    }
+}
+
+final class DemoApiFacade extends \Kode\Core\Facade
+{
+    protected static function id(): string
+    {
+        return DemoApi::class;
+    }
+}
+
+$app->container->singleton(DemoApi::class, fn() => new DemoApi('v2'));
+echo 'facade = ' . DemoApiFacade::get() . PHP_EOL; // 输出 v2-data
+
+// ---------- 7) 协程/分布式上下文（桥接 kode/context） ----------
+
+$ctx = $app->context();
+$ctx->set('tenant_id', 42);
+echo 'context.tenant_id = ' . $ctx->get('tenant_id') . PHP_EOL;
+
+$traceId = $ctx->startTrace();            // 开启一条分布式链路
+$headers = $ctx->toHeaders();             // 导出可跨节点透传的 HTTP 头
+echo 'trace_id = ' . $traceId . PHP_EOL;
+echo 'trace headers = ' . implode(', ', array_keys($headers)) . PHP_EOL;
+$ctx->reset();
+
+// ---------- 8) console 运行时模式（kode/runtime 3.x + kode/console） ----------
+
+try {
+    $app->enableRuntime('console');
+    echo "enabled runtime: console (active = {$app->runtime->getName()})\n";
+} catch (\Kode\Core\Exceptions\RuntimeException $e) {
+    echo "runtime [console] 未启用：{$e->getMessage()}\n";
+}
+
