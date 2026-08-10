@@ -112,6 +112,12 @@ final class Bootstrap
         foreach ($this->options['runtime'] ?? [] as $mode) {
             $this->runtime->enable($mode);
         }
+
+        // 协程运行时（fiber/swoole/swow）下，自动开启门面上下文安全模式，
+        // 使每个协程拥有独立的门面实例缓存，避免跨协程污染（facade 3.2 能力）。
+        if ($this->runtime->has('fiber') || $this->runtime->has('swoole') || $this->runtime->has('swow')) {
+            Facade::setAutoContextSafe(true);
+        }
     }
 
     private function basePath(): string

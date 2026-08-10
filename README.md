@@ -121,6 +121,16 @@ Cache::get('k');
 门面类继承 `Kode\Core\Facade` 即可，容器由 `App::boot()` 在启动时自动注入；
 `id()` 到真实实例的绑定在首次静态调用时自动完成，无需手动 register。
 
+> **协程隔离（kode/facade 3.2）**：当 `App::boot()` 检测到协程运行时
+> （fiber / swoole / swow）时，会自动为每个门面开启「上下文安全模式」，
+> 使每个协程拥有独立的门面实例缓存，避免跨协程污染。也可手动控制：
+>
+> ```php
+> $app->enableFacadeContextSafe();        // 开启（协程隔离）
+> $app->enableFacadeContextSafe(false);    // 关闭
+> \Kode\Core\Facade::enableContextSafeForAll(); // 为已解析的门面批量开启
+> ```
+
 ### 应用上下文（桥接 kode/context）
 
 为 Fiber / Swoole / Swow / 多线程 / 多进程 / 同步 环境提供「执行单元级」上下文隔离，
@@ -339,10 +349,11 @@ kode/core        ← 本包：App 启动器 + 内置 ServiceProvider/Config（�
    │  桥接（按需启用命令）
    ├── kode/di          DI 容器（bind/singleton/属性注入/协程上下文隔离）
    ├── kode/runtime     统一运行时抽象（cli/fiber/process/thread/swoole/swow）
+   ├── kode/facade      静态门面（context-safe 协程隔离，3.2+）
+   ├── kode/context     跨机器协程上下文透传（分布式）
    ├── kode/process     Master-Worker 多进程（建议随 enable('process') 安装）
    ├── kode/parallel    多线程/并行（Runtime/Task/Future/Cluster）
-   ├── kode/fibers      Fiber 协程调度 + 分布式事务
-   └── kode/context     跨机器协程上下文透传（分布式）
+   └── kode/fibers      Fiber 协程调度 + 分布式事务
 ```
 
 `kode/core` 是“地基 + 启动器”，其它 kode 包是“可插拔的能力插件”。业务应用只需依赖 `kode/core`，

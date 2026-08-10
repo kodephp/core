@@ -25,7 +25,7 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '1.3.0';
+    public const VERSION = '1.4.0';
 
     private static ?App $instance = null;
 
@@ -248,6 +248,22 @@ final class App
     public function enableRuntime(string $name): App
     {
         $this->runtime->enable($name);
+        return $this;
+    }
+
+    /**
+     * 开启门面上下文安全模式（协程隔离）。
+     *
+     * 当应用运行在 Fiber / Swoole / Swow 等协程运行时时建议开启，
+     * 使每个协程拥有独立的门面实例缓存，避免跨协程污染（kode/facade 3.2 能力）。
+     * 默认在 App::boot() 检测到协程运行时后自动开启，本方法可用于运行时动态控制。
+     *
+     *   $app->enableFacadeContextSafe();        // 开启
+     *   $app->enableFacadeContextSafe(false);    // 关闭
+     */
+    public function enableFacadeContextSafe(bool $on = true): static
+    {
+        Facade::setAutoContextSafe($on);
         return $this;
     }
 

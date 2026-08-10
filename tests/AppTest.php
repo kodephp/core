@@ -127,7 +127,7 @@ final class AppTest extends TestCase
         ]);
 
         // 版本号常量
-        self::assertSame('1.3.0', App::VERSION);
+        self::assertSame('1.4.0', App::VERSION);
 
         // 全局辅助函数
         self::assertSame($app, app());
@@ -167,7 +167,7 @@ final class AppTest extends TestCase
         self::assertSame('/var/www/app/src', $app->path());
 
         // 版本便捷方法
-        self::assertSame('1.3.0', $app->version());
+        self::assertSame('1.4.0', $app->version());
 
         // booted：应用已启动，注册即立即执行（并以 DI 注入 App）
         $bootedLog = [];
@@ -306,6 +306,28 @@ final class AppTest extends TestCase
         $svc = $container->make(AttributedService::class);
 
         self::assertInstanceOf(Logger::class, $svc->resolvedLogger());
+    }
+
+    public function testFacadeAutoContextSafeUnderCoroutine(): void
+    {
+        // 协程运行时（fiber）下，App 应自动为门面开启上下文安全模式
+        $app = App::boot([
+            'config'  => ['app' => ['name' => 'CtxSafe']],
+            'runtime' => ['fiber'],
+        ]);
+        $app->container->singleton(DemoApi::class, fn() => new DemoApi('v1'));
+
+        // 全局开关已被自动打开，且首次解析的门面已进入上下文安全模式
+        self::assertTrue(\Kode\Core\Facade::isAutoContextSafe());
+        DemoApiFacade::get();
+        self::assertTrue(DemoApiFacade::isContextSafeMode());
+
+        // 上下文安全模式下仍按容器实例正确解析（CLI 下单执行单元等价）
+        self::assertSame($app->make(DemoApi::class), DemoApiFacade::getInstance());
+
+        // 复位，避免污染其它测试
+        \Kode\Core\Facade::resetAll();
+        self::assertFalse(\Kode\Core\Facade::isAutoContextSafe());
     }
 }
 

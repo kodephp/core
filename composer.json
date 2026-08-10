@@ -31,7 +31,7 @@
         "kode/runtime": "^3.4",
         "kode/attributes": "^2.1",
         "kode/context": "^3.1",
-        "kode/facade": "^1.0"
+        "kode/facade": "^3.2"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.0"
