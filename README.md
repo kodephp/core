@@ -75,13 +75,13 @@ echo $app->config('app.name');              // Kode
 启动后，除了 `App` 实例本身，还提供三个全局函数与若干便捷方法：
 
 ```php
-app();                 // 返回已启动的 App 实例（等价于 App::getInstance()）
+app();                 // 返回已启动的 App 实例（等价于 App::getInstance()；未启动时为 null）
 app(Greeter::class);   // 等价于 $app->make(Greeter::class)
 config('app.name');    // 读配置（等价于 $app->config('app.name')）
 runtime();             // 返回 Runtime 实例（等价于 $app->runtime）
 
 // App 便捷方法
-App::VERSION;          // 当前版本号，如 '1.1.0'（与 git tag 保持一致）
+App::VERSION;          // 当前版本号，如 '1.5.0'（与 git tag 保持一致）
 $app->version();       // 等价于 App::VERSION
 $app->has(Greeter::class);            // 容器中是否存在该绑定
 $app->call(fn (Greeter $g) => $g->hello());  // 以 DI 自动注入方式调用回调
@@ -94,6 +94,12 @@ $app->basePath('config/app.php');     // 基路径拼接相对路径
 $app->path();                         // 应用源码路径（basePath/src）
 $app->enableRuntime('process');       // 链式启用运行时（等价于 $app->runtime->enable()）
 ```
+
+> **启动前调用**：`app()`（无参）未启动时返回 `null`，供 `app()?->basePath()` 这类兜底写法
+> 使用；`app(服务)` / `config(...)` / `runtime()` / `ctx()` 未启动时抛 `RuntimeException`
+> （提示「App 尚未启动」），而不是留下 `Call to a member function … on null`。
+> 服务提供者的 `register()/boot()` 阶段 App 单例尚未创建，读配置请走容器里的
+> `Kode\Core\Config\Config`（kode/framework 基类的 `$this->config()` 即为此准备）。
 
 ### 静态门面（桥接 kode/facade）
 
@@ -123,12 +129,15 @@ Cache::get('k');
 
 > **协程隔离（kode/facade 3.2）**：当 `App::boot()` 检测到协程运行时
 > （fiber / swoole / swow）时，会自动为每个门面开启「上下文安全模式」，
-> 使每个协程拥有独立的门面实例缓存，避免跨协程污染。也可手动控制：
+> 使每个协程拥有独立的门面实例缓存，避免跨协程污染。开关与解析的先后顺序无关：
+> 先被用到、后才开启隔离的门面（服务提供者 register 期就会遇到），
+> 在开关打开时追溯补开，之后的每次解析也会自查补齐。也可手动控制：
 >
 > ```php
 > $app->enableFacadeContextSafe();        // 开启（协程隔离）
 > $app->enableFacadeContextSafe(false);    // 关闭
 > \Kode\Core\Facade::enableContextSafeForAll(); // 为已解析的门面批量开启
+> \Kode\Core\Facade::resetAll();           // 测试隔离：清开关 + 解析记录 + 门面绑定
 > ```
 
 ### 应用上下文（桥接 kode/context）
@@ -171,6 +180,10 @@ $app->terminating(function (): void {
 // 也可在测试中手动触发： $app->callTerminatingCallbacks()
 ```
 
+> `terminating` 回调互不拖累：列表先摘牌再逐个执行，某个回调抛错只会以
+> `error_log('[kode] terminating 回调失败：…')` 记录，其余清理照常进行；
+> 重复调用为无操作（幂等）。`booted` 回调相反——启动期抛错应当中断启动，不做吞掉。
+
 ### 应用事件总线、维护模式与运行环境
 
 ```php
@@ -210,7 +223,24 @@ $app->runningUnitTests();       // 是否单元测试环境（PHPUnit / APP_ENV=
 ③ 启动运行时 startRuntime()
        └─ 默认启用 cli（桥接 kode/runtime）
           → 按 options['runtime'] 逐个 enable()（启用命令叠加高级模式）
+          → 生效环境为协程类（fiber/swoole/swow）时自动开启门面协程隔离
 ```
+
+**配置合并语义（`Config::merge`）**：同名键两侧都是数组时——均为「列表」（连续整数下标）则
+**后者整体替换**，否则递归合并；一侧数组一侧标量则后者覆盖前者。
+
+```php
+// 目录里 config/pipeline.php 返回 ['middleware' => ['a','b','c']]
+App::boot([
+    'config_path' => __DIR__ . '/config',
+    'config'      => ['pipeline' => ['middleware' => ['x']]],  // 最高优先级
+]);
+config('pipeline.middleware');   // ['x'] —— 而不是旧语义按下标拼接出的 ['x','b','c']
+```
+
+> 这一点对常驻进程尤其要紧：热重载（`ConfigCenter::reload()`）走的也是 `merge()`，
+> 旧语义下「远端删掉一项 / 清空一个列表」永远盖不掉进程内的残留元素。
+> 需要「按位置覆盖个别元素」的场景不适用本包合并语义，请在配置里用关联结构表达。
 
 `Bootstrap` 只是“启动流程”这一组件的命名，与应用包名 `kode/core` 无关——这正是你关心的「组件名 ≠ 框架名」。
 
@@ -292,6 +322,25 @@ $app->enableRuntime('process');      // 运行时再启用多进程（链式）
 | `enable('console')` | 命令行输出增强（kode/console） | kode/runtime `console` | 抛出明确提示（需 kode/console） |
 | `enable('parallel')` | 并行 / 多线程（Runtime/Task/Future/Cluster） | **自动桥接 kode/parallel** | 提示 `composer require kode/parallel` |
 | `enable('distributed')` | 分布式（协程调度 + 跨机器上下文透传） | **自动桥接 kode/fibers + kode/context** | 提示 `composer require kode/fibers kode/context` |
+
+### 「启用过」与「当前生效」是两件事
+
+kode/runtime 同时只运行**一个**环境，`enable()` 多次调用时后者覆盖前者；
+而 `has()` / `enabled()` 记录的是本进程「启用过哪些」（单调累积，桥接能力一旦激活也持续有效）。
+判断现在跑在什么环境，用 `environment()`：
+
+```php
+$app->runtime->enable('fiber');
+$app->runtime->enable('cli');       // 覆盖回 cli
+
+$app->runtime->environment();       // 'cli'   ← 当前生效（尚未启用任何环境时为 null）
+$app->runtime->has('fiber');        // true    ← 仅表示「启用过」
+$app->runtime->getName();           // 'CLI'   ← kode/runtime 的大写环境标签
+```
+
+`boot()` 也按「当前生效环境」判定：已经 `enable()` 过环境时不再回落 `cli`，
+避免把协程环境打回 CLI。`App::boot()` 是否开启门面协程隔离，同样只看
+`environment()` 是否为 fiber / swoole / swow。
 
 ### 自动桥接适配器（重点）
 

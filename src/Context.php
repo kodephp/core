@@ -191,8 +191,12 @@ final class Context
         KodeContext::reset();
     }
 
-    /** 返回底层原始静态上下文类，便于调用本封装未覆盖的高级方法。 */
-    public function raw(): KodeContext
+    /**
+     * 返回底层原始静态上下文类名，便于调用本封装未覆盖的高级方法。
+     *
+     * @return class-string<KodeContext>
+     */
+    public function raw(): string
     {
         return KodeContext::class;
     }

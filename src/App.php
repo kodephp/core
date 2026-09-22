@@ -25,7 +25,7 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '1.4.0';
+    public const VERSION = '1.5.0';
 
     private static ?App $instance = null;
 
@@ -232,13 +232,25 @@ final class App
         return $this;
     }
 
-    /** 执行所有 terminating 回调（幂等：执行后清空，重复调用为无操作）。 */
+    /**
+     * 执行所有 terminating 回调（幂等：执行后清空，重复调用为无操作）。
+     *
+     * 本方法由 register_shutdown_function 在进程退出前触发，属最后一道清理：
+     * 先摘牌再执行（抛错也不会重复触发），单个回调抛错只记录不中断其余回调，
+     * 否则一个失败的清理会连带把后面的资源释放全部跳过。
+     */
     public function callTerminatingCallbacks(): void
     {
-        foreach ($this->terminatingCallbacks as $callback) {
-            $this->container->call($callback);
-        }
+        $callbacks = $this->terminatingCallbacks;
         $this->terminatingCallbacks = [];
+
+        foreach ($callbacks as $callback) {
+            try {
+                $this->container->call($callback);
+            } catch (\Throwable $e) {
+                error_log('[kode] terminating 回调失败：' . $e::class . ': ' . $e->getMessage());
+            }
+        }
     }
 
     /**
@@ -372,7 +384,7 @@ final class App
     public function runningUnitTests(): bool
     {
         return class_exists(\PHPUnit\Framework\TestCase::class)
-            || defined('PHPUNIT_COMPLETION')
+            || defined('PHPUNIT_TESTSUITE')
             || getenv('APP_ENV') === 'testing';
     }
 }

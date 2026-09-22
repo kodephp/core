@@ -47,25 +47,31 @@ abstract class Facade extends KodeFacade
 
     /**
      * 获取门面背后的真实实例。
-     * 首次调用时自动把「当前门面类 → id()」注册到 FacadeProxy，
-     * 若全局已开启自动上下文安全，则同时为本门面开启（协程隔离）。
+     * 首次调用时自动把「当前门面类 → id()」注册到 FacadeProxy；
+     * 只要全局处于自动上下文安全模式，就为本门面开启协程隔离（不看绑定先后）。
      */
     public static function getInstance(): object
     {
         if (!FacadeProxy::isBound(static::class)) {
             FacadeProxy::bind(static::class, static::id());
-            self::$resolved[static::class] = true;
-            if (self::$autoContextSafe) {
-                static::enableContextSafeMode();
-            }
+        }
+        self::$resolved[static::class] = true;
+        if (self::$autoContextSafe && !static::isContextSafeMode()) {
+            static::enableContextSafeMode();
         }
         return parent::getInstance();
     }
 
-    /** 切换全局自动上下文安全模式（协程环境下建议开启）。 */
+    /**
+     * 切换全局自动上下文安全模式（协程环境下建议开启）。
+     * 开启时同步为「此前已解析过」的门面补上隔离，避免启动顺序造成漏网。
+     */
     public static function setAutoContextSafe(bool $on = true): void
     {
         self::$autoContextSafe = $on;
+        if ($on) {
+            self::enableContextSafeForAll();
+        }
     }
 
     /** 当前是否处于全局自动上下文安全模式。 */
@@ -85,10 +91,13 @@ abstract class Facade extends KodeFacade
         }
     }
 
-    /** 复位门面状态（含自动上下文安全开关与解析记录），主要用于测试隔离。 */
+    /** 复位门面状态（含自动上下文安全开关、解析记录与门面绑定），主要用于测试隔离。 */
     public static function resetAll(): void
     {
         self::$autoContextSafe = false;
+        foreach (array_keys(self::$resolved) as $facade) {
+            FacadeProxy::unbind($facade);
+        }
         self::$resolved = [];
         parent::resetState();
     }

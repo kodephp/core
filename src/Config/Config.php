@@ -79,7 +79,9 @@ final class Config
 
     /**
      * 合并一批配置（用于 Loader 加载的结果或 boot() 时传入的覆盖项）。
-     * 同名键为数组时递归合并，否则后者覆盖前者。
+     *
+     * 同名键两侧都是数组时：均为「列表」→ 后者整体替换；否则 → 递归合并。
+     * 其余情况（标量 / 一侧数组一侧标量）→ 后者直接覆盖前者。
      */
     public function merge(array $items): void
     {
@@ -90,7 +92,11 @@ final class Config
     {
         foreach ($b as $k => $v) {
             if (is_array($v) && isset($a[$k]) && is_array($a[$k])) {
-                $a[$k] = $this->mergeRecursive($a[$k], $v);
+                // 列表按下标递归会让旧元素残留（覆盖 ['x'] 得到 ['x','b','c']，
+                // 覆盖 [] 更是清不掉），因此列表语义恒为整体替换；关联数组仍递归合并。
+                $a[$k] = (array_is_list($v) && array_is_list($a[$k]))
+                    ? $v
+                    : $this->mergeRecursive($a[$k], $v);
             } else {
                 $a[$k] = $v;
             }

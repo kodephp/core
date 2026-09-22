@@ -115,7 +115,8 @@ final class Bootstrap
 
         // 协程运行时（fiber/swoole/swow）下，自动开启门面上下文安全模式，
         // 使每个协程拥有独立的门面实例缓存，避免跨协程污染（facade 3.2 能力）。
-        if ($this->runtime->has('fiber') || $this->runtime->has('swoole') || $this->runtime->has('swow')) {
+        // 按「当前生效环境」判定：enable 过多个环境时后者已覆盖前者，不能用启用记录。
+        if (in_array($this->runtime->environment(), ['fiber', 'swoole', 'swow'], true)) {
             Facade::setAutoContextSafe(true);
         }
     }

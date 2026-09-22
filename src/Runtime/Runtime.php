@@ -45,8 +45,16 @@ final class Runtime
     /** 已注册的自动桥接适配器（逻辑模式 → 适配器实例）。 */
     private array $bridges = [];
 
-    /** @var array<string, true> 已启用的模式（环境 + 桥接） */
+    /** @var array<string, true> 启用过的模式（环境 + 桥接，单调累积） */
     private array $enabled = [];
+
+    /**
+     * 当前激活的 kode/runtime 环境模式。
+     *
+     * kode/runtime 同时只运行一个环境（setEnvironment 后者覆盖前者），
+     * 本字段与之一致；$enabled 记录的是「启用过」，两者语义不同勿混用。
+     */
+    private ?string $env = null;
 
     /** @var array<string, bool> 当前环境/依赖是否支持某模式（含桥接）的缓存 */
     private array $supportedCache = [];
@@ -113,6 +121,7 @@ final class Runtime
         } catch (\Kode\Runtime\Exception\UnsupportedOperationException $e) {
             throw new RuntimeException("无法启用运行时模式 {$mode}：{$e->getMessage()}");
         }
+        $this->env = $mode;
         $this->enabled[$mode] = true;
     }
 
@@ -150,22 +159,33 @@ final class Runtime
         return $this->supportedCache[$mode] = false;
     }
 
-    /** 是否已启用某模式（含桥接）。 */
+    /** 是否启用过某模式（环境 + 桥接，单调累积；当前生效环境见 environment()）。 */
     public function has(string $mode): bool
     {
         return isset($this->enabled[$mode]);
     }
 
-    /** @return array<string, true> 所有已启用的模式（环境 + 桥接）。 */
+    /**
+     * 当前生效的 kode/runtime 环境模式（cli/fiber/swoole/…）；尚未启用任何环境时为 null。
+     *
+     * 与 has() 的区别：多次 enable(环境) 时后者覆盖前者，本方法只回答「现在跑在哪个环境」，
+     * has() 回答「启用过哪些」。判断是否处于协程环境请用本方法。
+     */
+    public function environment(): ?string
+    {
+        return $this->env;
+    }
+
+    /** @return array<string, true> 所有启用过的模式（环境 + 桥接）。 */
     public function enabled(): array
     {
         return $this->enabled;
     }
 
-    /** 默认启动：若未显式启用任何 kode/runtime 环境，则启用 cli。 */
+    /** 默认启动：若尚未启用任何 kode/runtime 环境，则启用 cli。 */
     public function boot(): void
     {
-        if (!$this->has('cli')) {
+        if ($this->env === null) {
             $this->enable('cli');
         }
     }

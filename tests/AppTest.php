@@ -126,9 +126,6 @@ final class AppTest extends TestCase
             'runtime' => ['fiber'],
         ]);
 
-        // 版本号常量
-        self::assertSame('1.4.0', App::VERSION);
-
         // 全局辅助函数
         self::assertSame($app, app());
         self::assertSame('Helper', config('app.name'));
@@ -167,7 +164,7 @@ final class AppTest extends TestCase
         self::assertSame('/var/www/app/src', $app->path());
 
         // 版本便捷方法
-        self::assertSame('1.4.0', $app->version());
+        self::assertSame(App::VERSION, $app->version());
 
         // booted：应用已启动，注册即立即执行（并以 DI 注入 App）
         $bootedLog = [];
