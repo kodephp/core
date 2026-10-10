@@ -440,3 +440,9 @@ application/                 # 开发目录（包名是 kode/core，目录名与
 
 - 要求 **PHP >= 8.3**，使用了 `readonly`、枚举式常量、`match`、属性（Attribute）、First-class callable 等现代特性。
 - 所有公开类名均避开 PHP 保留字与内置类/函数（`App` / `Bootstrap` / `Config` / `Provider` / `Runtime` 等均为安全普通类名）。
+
+---
+
+## 十、许可证
+
+MIT License，详见 [LICENSE](LICENSE)。
