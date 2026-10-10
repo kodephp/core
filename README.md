@@ -414,7 +414,7 @@ kode/core        ← 本包：App 启动器 + 内置 ServiceProvider/Config（�
 
 ```
 application/                 # 开发目录（包名是 kode/core，目录名与包名可不同）
-├── composer.json            # name: kode/core, php >= 8.3, require: kode/di + kode/runtime
+├── composer.json            # name: kode/core, php >= 8.4, require: kode/di + kode/runtime
 ├── LICENSE                  # MIT（Copyright (c) kode, zyk）
 ├── CHANGELOG.md             # 版本变更记录（仅本地，不入库）
 ├── .gitignore               # 忽略 vendor / composer.lock / .workbuddy / CHANGELOG.md 等
