@@ -50,6 +50,7 @@ abstract class Facade extends KodeFacade
      * 首次调用时自动把「当前门面类 → id()」注册到 FacadeProxy；
      * 只要全局处于自动上下文安全模式，就为本门面开启协程隔离（不看绑定先后）。
      */
+    #[\Override]
     public static function getInstance(): object
     {
         if (!FacadeProxy::isBound(static::class)) {

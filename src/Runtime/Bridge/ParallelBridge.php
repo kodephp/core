@@ -19,17 +19,20 @@ final class ParallelBridge extends AbstractRuntimeBridge
 {
     private const PACKAGE = 'kode/parallel';
 
+    #[\Override]
     public function mode(): string
     {
         return 'parallel';
     }
 
     /** @return array<int, string> */
+    #[\Override]
     public function composerPackages(): array
     {
         return [self::PACKAGE];
     }
 
+    #[\Override]
     public function activate(?Container $container): void
     {
         if ($container === null || !$this->isInstalled()) {

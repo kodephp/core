@@ -24,5 +24,6 @@ use Kode\DI\ServiceProvider as DiServiceProvider;
 abstract class ServiceProvider extends DiServiceProvider
 {
     /** 注册服务绑定（必须实现）。 */
+    #[\Override]
     abstract public function register(): void;
 }

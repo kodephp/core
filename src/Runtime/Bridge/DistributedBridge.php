@@ -28,17 +28,20 @@ final class DistributedBridge extends AbstractRuntimeBridge
         'Kode\\Context\\CoroutineContext',
     ];
 
+    #[\Override]
     public function mode(): string
     {
         return 'distributed';
     }
 
     /** @return array<int, string> */
+    #[\Override]
     public function composerPackages(): array
     {
         return self::PACKAGES;
     }
 
+    #[\Override]
     public function activate(?Container $container): void
     {
         if ($container === null || !$this->isInstalled()) {

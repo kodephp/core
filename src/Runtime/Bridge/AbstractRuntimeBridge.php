@@ -12,6 +12,7 @@ namespace Kode\Core\Runtime\Bridge;
 abstract class AbstractRuntimeBridge implements RuntimeBridgeInterface
 {
     /** {@inheritdoc} */
+    #[\Override]
     public function isInstalled(): bool
     {
         foreach ($this->composerPackages() as $package) {

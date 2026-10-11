@@ -81,7 +81,7 @@ config('app.name');    // 读配置（等价于 $app->config('app.name')）
 runtime();             // 返回 Runtime 实例（等价于 $app->runtime）
 
 // App 便捷方法
-App::VERSION;          // 当前版本号，如 '2.0.1'（与 git tag 保持一致）
+App::VERSION;          // 当前版本号，如 '2.0.2'（与 git tag 保持一致）
 $app->version();       // 等价于 App::VERSION
 $app->has(Greeter::class);            // 容器中是否存在该绑定
 $app->call(fn (Greeter $g) => $g->hello());  // 以 DI 自动注入方式调用回调

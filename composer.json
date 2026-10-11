@@ -1,6 +1,6 @@
 {
     "name": "kode/core",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "Kode Core —— 关联 kode 生态包的应用启动器（App::boot）：加载配置 → 注册服务 → 启动运行时。DI 由 kode/di 提供，运行时由 kode/runtime 提供，ServiceProvider 与 Config 内置于本包。",
     "type": "library",
     "license": "MIT",
