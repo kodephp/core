@@ -25,7 +25,7 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '2.0.3';
+    public const VERSION = '2.0.4';
 
     private static ?App $instance = null;
 

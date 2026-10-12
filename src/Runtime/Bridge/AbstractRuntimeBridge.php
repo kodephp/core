@@ -15,12 +15,7 @@ abstract class AbstractRuntimeBridge implements RuntimeBridgeInterface
     #[\Override]
     public function isInstalled(): bool
     {
-        foreach ($this->composerPackages() as $package) {
-            if (!self::packageInstalled($package)) {
-                return false;
-            }
-        }
-        return true;
+        return array_all($this->composerPackages(), fn($package) => self::packageInstalled($package));
     }
 
     /**
