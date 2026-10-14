@@ -25,7 +25,7 @@ use Kode\DI\Container;
 final class App
 {
     /** 当前发布版本（与 git tag vX.Y.Z 保持一致）。 */
-    public const VERSION = '2.0.4';
+    public const VERSION = '2.0.5';
 
     private static ?App $instance = null;
 
@@ -353,10 +353,15 @@ final class App
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-        file_put_contents($path, json_encode([
+        // temp + rename 原子替换：并发读者（isDownForMaintenance / 诊断读 JSON）不会看到半写内容
+        $tmp = $path . '.' . bin2hex(random_bytes(8)) . '.tmp';
+        file_put_contents($tmp, json_encode([
             'time'    => time(),
             'message' => $message,
-        ], JSON_UNESCAPED_UNICODE));
+        ], JSON_UNESCAPED_UNICODE), LOCK_EX);
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+        }
         return $this;
     }
 
