@@ -43,6 +43,7 @@ abstract class Facade extends KodeFacade
     private static bool $autoContextSafe = false;
 
     /** 已解析（首次 getInstance）过的门面类，用于 retroactive 批量开启 context-safe。 */
+    /** @var array<class-string, true> */
     private static array $resolved = [];
 
     /**

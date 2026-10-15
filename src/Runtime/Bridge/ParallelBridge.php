@@ -48,7 +48,8 @@ final class ParallelBridge extends AbstractRuntimeBridge
             'Kode\\Parallel\\Worker',
         ];
         foreach ($candidates as $cls) {
-            if (class_exists($cls) && !$container->has($cls)) {
+            // kode/parallel 为可选 peer 包，按类名字符串运行期探测，不因分析环境未装而拆除
+            if (class_exists($cls) && !$container->has($cls)) { // @phpstan-ignore function.impossibleType (可选 peer 包运行期探测)
                 $container->singleton($cls);
             }
         }

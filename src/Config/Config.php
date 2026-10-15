@@ -43,7 +43,6 @@ final class Config
     public function get(string $key, mixed $default = null): mixed
     {
         $segments = explode('.', $key);
-        /** @var mixed $cursor */
         $cursor = $this->items;
         foreach ($segments as $seg) {
             if (!is_array($cursor) || !array_key_exists($seg, $cursor)) {
@@ -60,7 +59,6 @@ final class Config
     public function has(string $key): bool
     {
         $segments = explode('.', $key);
-        /** @var mixed $cursor */
         $cursor = $this->items;
         foreach ($segments as $seg) {
             if (!is_array($cursor) || !array_key_exists($seg, $cursor)) {
